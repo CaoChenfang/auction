@@ -1,5 +1,5 @@
 import { connectMongoDB } from "@/lib/mongodb";
-import Game from "@/models/game";
+import AuctionGame from "@/models/auctionGame";
 //import GameData from "@/models/gameData";
 import { NextResponse } from "next/server";
 import mongoose, {Schema, models} from "mongoose";
@@ -9,7 +9,7 @@ export async function POST(req) {
         console.log("the winner", userwinner);
         await connectMongoDB();
         //const user = await User.findOne({email}).select("_id");
-        await Game.updateMany({isactive: "active"}, {isactive: "ended", winner: userwinner, winningbids: winningbid, useraveragebid:averagebid});
+        await AuctionGame.updateMany({isactive: "active"}, {isactive: "ended", winner: userwinner, winningbids: winningbid, useraveragebid:averagebid});
         
         //Archive Gamedata
        // var db = mongoose.connection.db;

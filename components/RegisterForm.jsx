@@ -111,7 +111,7 @@ export default function RegisterForm() {
     return (
         <div>
             <NavBar />
-            {role === "admin" ? renderForm(): (<div className="grid place-items-center h-screen"> You do not have right to access this page</div>)}
+                {renderForm()}
         </div>
     ) 
 }

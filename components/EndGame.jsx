@@ -4,19 +4,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import HistogramChart from "./HistogramChart";
-
+import { useCountdown } from './useCountdown';
 import { signOut } from "next-auth/react";
 
 export default function EndGame() {
 
   const [userbid, setBid] = useState();
   const [error, setError] = useState("");
-  const [game, setGame] = useState([{ winner: [],
-  maxnumbid: 0,
-  gamelength: 0,
-  gametype: 'public',
-  isactive:'ended'}]);
-  const [gameData, setGameData] = useState([]);
+  const [game, setGame] = useState();
+  const [gameData, setGameData] = useState();
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -24,8 +20,7 @@ export default function EndGame() {
   const useremail = session?.user?.email;
   //The first part is to connect to the server to find out the active game.
   //Get the last game and check the game status
- 
-  
+   
   //Collect the game and game data to start with
   useEffect( () => {
     async function getGame() {
@@ -91,14 +86,13 @@ export default function EndGame() {
   //console.log(game[0].maxnumbid);
  
    //Get the type of the game
-   const gametype = () => {
+  const auctiontype = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
-      return game[game.length - 1].gametype;
+      return game[game.length - 1].auctiontype;
     } else {
       return "";
     }
   }
-
   //Get the status of the game
   const isactive = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
@@ -118,91 +112,140 @@ export default function EndGame() {
   }
 
   //Calculate the winner 
+  //Calculate the winner 
   const calculateWinner = (_gameData) => {
-    if (_gameData.length > 0) {
-      if(_gameData[0].bid.length > 0){        
+    if ( typeof _gameData !== 'undefined' && _gameData.length > 0) {            
       var simplifiedGameData = _gameData.map(item => {
         return {"email": item.email, 
-        "lastbid":  parseFloat(item.bid[item.bid.length - 1]['$numberDecimal'].toString()),
+        "lastbid":  item.bid.length > 0 ? parseFloat(item.bid[item.bid.length - 1]['$numberDecimal'].toString()):0,
+        "updated": item.updated,
       }; });
       var _bidList = simplifiedGameData.map(item=>item.lastbid);
-      var _averageBid = _bidList.reduce((a,c) => a + c, 0)/_bidList.length;
+      //console.log("The list of bid", _bidList)
       //find closest indexes
-      const diffArr = _bidList.map(x => Math.abs(_averageBid*0.75 - x));
-      const minNumber = Math.min(...diffArr);
-      const index = diffArr.map( (x,index) => { if(x === minNumber) return index}).filter(item => item !== undefined);
+      
+      const maxNumber = Math.max(..._bidList);
+      const index = _bidList.map((x,index) => { if(x === maxNumber) return index}).filter(item => item !== undefined);
       const _winnerList = simplifiedGameData.filter((el,i) => index.some(j => i === j));
       const _winnerEmail = _winnerList.map(item => item.email);
       const _winnerBids = _winnerList.map(item => item.lastbid);
       return {
         userwinner: _winnerEmail, 
         winningbid: _winnerBids,
-        averagebid:_averageBid,
-        bidlist: _bidList,
-
-      }
-
-      } else {
-        return {
-          userwinner: [], 
-          winningbid: [],
-          averagebid: 0,
-          bidlist:[],
-        }
-
-      }
+        averagebid:_winnerBids,
+        bidlist:_bidList,
+        
+      }     
 
     } else {
       return {
         userwinner: [], 
         winningbid: [],
         averangebid: 0,
-        bidlist:[],
+        bidlist: [],
       }
     }
 
   }
-  const {userwinner, winningbid, averagebid, bidlist} = calculateWinner(gameData);
- 
-    //Get the average winning bid 
-    const gameAverageBid = () => {
-      if (typeof game !== 'undefined' && game.length > 0 ) { 
-      
-        if (typeof ( game[game.length - 1].useraveragebid)!== 'undefined') {
-          return game[game.length - 1].useraveragebid['$numberDecimal'].toString();     
-        }
-      
-              
-       
-      }   return ""; }
+
+  const {userwinnerlist, winningbidlist, averagebidlist, bidlist} = calculateWinner(gameData);
+  console.log(calculateWinner(gameData))
+  
+  // Get max, min 
+  const max = typeof(game) !=="undefined" ? (game.length > 0? game[game.length - 1].max["$numberDecimal"]:0): 0;
+  const min = typeof(game) !=="undefined" ? (game.length > 0? game[game.length - 1].min["$numberDecimal"]:0): 0;
+  const multiplier = typeof(game) !=="undefined" ? (game.length > 0? game[game.length - 1].multiplier["$numberDecimal"]:0): 0;
+  const gamelength = typeof(game) !=="undefined" ? (game.length > 0? game[game.length - 1].gamelength:0): 0;
+  const updated = typeof(game) !=="undefined" ? (game.length > 0? Date.parse(game[game.length - 1].updated).valueOf():0): 0;
+  const remainTime =  Date.now() < (updated + gamelength*60*1000) ? ((updated + gamelength*60*1000)-Date.now()):0;
+  const targetTime = updated + gamelength*60*1000;
+  const current_price = parseFloat(((max*multiplier-min)/gamelength*remainTime/60/1000)) + parseFloat(min) ;    
+  const currentprice = parseFloat(current_price).toFixed(2);
+
+   //Get the average winning bid 
+  
+  const gameAverageBid = () => {
+    if (typeof game !== 'undefined' && game.length > 0 ) { 
+      if (typeof ( game[game.length - 1].useraveragebid)!== 'undefined') {
+        return game[game.length - 1].useraveragebid['$numberDecimal'].toString();     
+      }      
+     
+    }   return ""; }
+  //
+    //Create a countdown Timer
+
+    const DateTimeDisplay = ({ value, type, isDanger }) => {
+      return (
+        <div className={isDanger ? 'countdown danger' : 'countdown'}>
+          <p>{value}</p>
+          <span>{type}</span>
+        </div>
+      );
+    };
+  
+    const ShowCounter = ({ days, hours, minutes, seconds }) => {
+      return (
+        <div className="show-counter">
+          <a          
+            target="_blank"
+            rel="noopener noreferrer"
+            className="countdown-link"
+          >
+            <DateTimeDisplay value={days} type={'Days'} isDanger={days <= 3} />
+            <p>:</p>
+            <DateTimeDisplay value={hours} type={'Hours'} isDanger={false} />
+            <p>:</p>
+            <DateTimeDisplay value={minutes} type={'Mins'} isDanger={false} />
+            <p>:</p>
+            <DateTimeDisplay value={seconds} type={'Seconds'} isDanger={false} />
+          </a>
+        </div>
+      );
+    };
+    
+    const CountdownTimer = ({ targetDate }) => {
+      const [days, hours, minutes, seconds] = useCountdown(targetDate);
+    
+      if (days + hours + minutes + seconds <= 0) {
+        return (<></>);
+      } else {
+        return (
+          <ShowCounter
+            days={days}
+            hours={hours}
+            minutes={minutes}
+            seconds={seconds}
+          />
+        );
+      }
+    };
+  
   //Get the winner 
-  console.log("The average bid",gameAverageBid());
   const getWinner = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
       if(typeof (game[game.length - 1].winner) !== 'undefined' && game[game.length - 1].winner.length > 0) {
           const _game = game[game.length - 1].winner;
-          return _game.map((item,index)=><span key={JSON.stringify(index)}>{item} </span>);
+          return _game;
       } else {
-        return <></>;
-      }
-     
+        return "";
+      }     
     } else {
-      return <></>;
+      return "";
     }
   }
   //Get the winning bids
   const getWinningBids = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
-      if(typeof (game[game.length - 1].winningbids) !== 'undefined' && game[game.length - 1].winningbids.length > 0) {
-          const _game = game[game.length - 1].winningbids;        
+      if(typeof (game[game.length - 1].winningbids) !== 'undefined') {
+          const _game = game[game.length - 1].winningbids['$numberDecimal'].toString();    
          
-          return _game.map((item,index)=><span key={JSON.stringify(index)}>{item['$numberDecimal']} </span>);;
+          return _game;
       } else {
-        return <></>;
+        return "";
       }
      
     } else {
-      return <></>;
+      return "";
     }
   }
   
@@ -279,6 +322,35 @@ export default function EndGame() {
   }
   //Handle the submission button
   const handleSubmit = async () => {
+    
+  if (auctiontype()==="sealedfirstprice") {
+    console.log(calculateWinner(gameData).userwinner)
+    if (typeof calculateWinner(gameData).userwinner !== 'undefined' && calculateWinner(gameData).userwinner.length > 0) {
+     
+      var userwinner = calculateWinner(gameData).userwinner[0];
+      var winningbid = calculateWinner(gameData).winningbid[0];
+      var averagebid = calculateWinner(gameData).averagebid[0];
+    } else {
+      var userwinner = "";
+      var winningbid = 0;
+      var averagebid = 0;
+    }
+} else {
+  if (typeof calculateWinner(gameData).userwinner !== 'undefined' && calculateWinner(gameData).userwinner.length > 0) {
+    var userwinner = calculateWinner(gameData).userwinner[0];
+    var winningbid = calculateWinner(gameData).winningbid[0];
+    var averagebid = calculateWinner(gameData).averagebid[0];
+  } else {
+    var userwinner = "";
+    var winningbid = 0;
+    var averagebid = 0;
+  }
+    
+
+}
+
+
+
       try {
       const res = await fetch('api/endGame', {
         method: "POST",
@@ -303,7 +375,7 @@ export default function EndGame() {
   };
   //Render the form and public info
   
-  console.log(gametype());
+
   const renderForm = () => {
     const userNumBid = (typeof userGameData().bid === 'undefined')? 0: userGameData().bid.length;
     return (
@@ -321,9 +393,12 @@ export default function EndGame() {
       </div>
      
     </div> : <div className="grid place-items-center p-20">The game&apos;winner is {getWinner()}  <br />
-    The winning number is {getWinningBids()}
+    The winning bid is {getWinningBids()}
     <br />
-    The average bid is {gameAverageBid()}.</div>
+    The common valuation is {max}.
+    <br />
+    The payoff for the winner is {parseFloat(getWinningBids())-parseFloat(max)}.        
+    </div>
     );
   }
 
@@ -333,9 +408,12 @@ export default function EndGame() {
          <div className="grid place-items-center p-10">
           <h1 className="font-semibold text-xl"> Welcome {useremail} to game management portal !</h1>
           <div>
-        {isactive()==="active" ? (gametype()==="public"? "The public game is active" : "The private game is active"):""}
+        {isactive()==="active" ? (auctiontype()==="open"? "The open auction is active" : (auctiontype()==="dutch"? "The dutch auction is active":"The first price sealed auction is active")):""}
         </div>
-          <HistogramChart props={bidlist}/>    
+        <div>
+              <CountdownTimer targetDate={targetTime} />
+          </div>
+          <HistogramChart props={bidlist} max = {max*multiplier + 1} min = {min}/>    
           {renderForm()}
           {renderPublicInfo(gameData)}     
         </div>

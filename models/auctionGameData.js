@@ -7,10 +7,14 @@ const gameDataSchema = new Schema(
         },
         bid: {
                 type: [mongoose.Decimal128], 
-                required: true,},       
+                required: true,},
+        valuation: {
+                    type:mongoose.Decimal128,
+                    required: true,
+                },       
         updated: { type: Date, default: Date.now },
     }
 );
 
-const GameData = models.GameData || mongoose.model("GameData", gameDataSchema);
-export default GameData;
+const AuctionGameData = models.AuctionGameData || mongoose.model("AuctionGameData", gameDataSchema);
+export default AuctionGameData;

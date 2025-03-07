@@ -5,17 +5,23 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import EndGame from "./EndGame";
 import { signOut } from "next-auth/react";
+import NavBarUser from "./NavBarUser";
+import React from 'react';
+import { useCountdown } from './useCountdown';
+import LineCharts from "./LineCharts";
 
 export default function SubmitBid() {
 
   const [userbid, setBid] = useState();
   const [error, setError] = useState("");
-  const [game, setGame] = useState([{ winner: [],
-  maxnumbid: 0,
-  gamelength: 0,
-  gametype: 'public',
-  isactive:'ended'}]);
-  const [gameData, setGameData] = useState([]);
+  //const [game, setGame] = useState([{ winner: '',
+ // maxnumbid: 0,
+ // gamelength: 0,
+ // gametype: 'open',
+  //isactive:'ended'}]);
+  //const [gameData, setGameData] = useState([]);
+  const [game, setGame] = useState();
+  const [gameData, setGameData] = useState();
   const { data: session } = useSession();
   const router = useRouter();
   const [submissionTime, setSubmissionTime] = useState(Date.now());
@@ -27,25 +33,6 @@ export default function SubmitBid() {
   
   //Collect the game and game data to start with
   useEffect( () => {
-    async function getGame() {
-      try {
-        const res = await fetch('api/getGame', {
-          method: "POST",
-          headers: {
-            "Content-type": "application/json"
-          },
-        });
-        
-        if (res.ok) {
-          const resData = await res.json();
-          setGame(resData)
-        }    
-        
-      } catch (err) {
-        console.error(err);
-      }     
-    
-    }
     async function getGameData() {
       try {
         const res = await fetch('api/getGameData', {
@@ -67,23 +54,40 @@ export default function SubmitBid() {
       }
     
     }
-    getGameData();
-    getGame();
 
-    //async function getGameData() {
-     // const res = await fetch('api/getGameData');
-     // const resgameData = await res.json();
-     // setGameData(resgameData);
-   // }
+    async function getGame() {
+      try {
+        const res = await fetch('api/getGame', {
+          method: "POST",
+          headers: {
+            "Content-type": "application/json"
+          },
+        });
+        
+        if (res.ok) {
+          const resData = await res.json();
+          if (typeof resData !== 'undefined' && resData.length > 0 ) {
+            setGame(resData);
+          }
+          
+        }    
+      } catch (err) {
+        console.error(err);
+      }
+    
+    }
+    getGameData();  
+    getGame();
+   
    const interval = setInterval(async () => {
-    await getGame();
+   
     await getGameData();
+    await getGame();
   }, 5 * 1000);
     
 
   return () => clearInterval(interval)
-    //getGameData();
-
+ 
   }, []);
   
 
@@ -96,7 +100,7 @@ export default function SubmitBid() {
       return 'ended';
     }
   }
-  console.log(isactive());
+  //console.log(isactive());
   //Get the max number of bid
   const maxnumbid = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
@@ -107,21 +111,91 @@ export default function SubmitBid() {
   }
 
   //Get the type of the game
-  const gametype = () => {
+  const auctiontype = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
-      return game[game.length - 1].gametype;
+      return game[game.length - 1].auctiontype;
     } else {
       return "";
     }
   }
+  // Get max, min 
+  const max = typeof(game) !=="undefined" ? (game.length > 0? parseInt(game[game.length - 1].max["$numberDecimal"]):0): 0;
+  const min = typeof(game) !=="undefined" ? (game.length > 0? parseInt(game[game.length - 1].min["$numberDecimal"]):0): 0;
+  const multiplier = typeof(game) !=="undefined" ? (game.length > 0? game[game.length - 1].multiplier["$numberDecimal"]:0): 0;
+  const gamelength = typeof(game) !=="undefined" ? (game.length > 0? game[game.length - 1].gamelength:0): 0;
+  const updated = typeof(game) !=="undefined" ? (game.length > 0? Date.parse(game[game.length - 1].updated).valueOf():0): 0;
+  const remainTime =  Date.now() < (updated + gamelength*60*1000) ? ((updated + gamelength*60*1000)-Date.now()):0;
+  const targetTime = updated + gamelength*60*1000;
+  const current_price = parseFloat(((max*multiplier-min)/gamelength*remainTime/60/1000)) + parseFloat(min) ;    
+  const currentprice = parseFloat(current_price).toFixed(2);
+  //console.log(currentprice)
+  //Render the user valuation
+  const renderUserValuation = () => {
+    if (typeof(userData)==="undefined") {
+        return "";
+    } 
+    if (userData.length === 0) {
+        return "";
+    }
+    var userValuation = Math.round(userData[0].valuation['$numberDecimal']*100)/100
+    return userValuation.toString();
+  }
+  //Create a countdown Timer
+
+  const DateTimeDisplay = ({ value, type, isDanger }) => {
+    return (
+      <div className={isDanger ? 'countdown danger' : 'countdown'}>
+        <p>{value}</p>
+        <span>{type}</span>
+      </div>
+    );
+  };
+
+  const ShowCounter = ({ days, hours, minutes, seconds }) => {
+    return (
+      <div className="show-counter">
+        <a          
+          target="_blank"
+          rel="noopener noreferrer"
+          className="countdown-link"
+        >
+          <DateTimeDisplay value={days} type={'Days'} isDanger={days <= 3} />
+          <p>:</p>
+          <DateTimeDisplay value={hours} type={'Hours'} isDanger={false} />
+          <p>:</p>
+          <DateTimeDisplay value={minutes} type={'Mins'} isDanger={false} />
+          <p>:</p>
+          <DateTimeDisplay value={seconds} type={'Seconds'} isDanger={false} />
+        </a>
+      </div>
+    );
+  };
+  
+  const CountdownTimer = ({ targetDate }) => {
+    const [days, hours, minutes, seconds] = useCountdown(targetDate);
+  
+    if (days + hours + minutes + seconds <= 0) {
+      return (<></>);
+    } else {
+      return (
+        <ShowCounter
+          days={days}
+          hours={hours}
+          minutes={minutes}
+          seconds={seconds}
+        />
+      );
+    }
+  };
+
+
+
   //Get the average winning bid 
   const gameAverageBid = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) { 
       if (typeof ( game[game.length - 1].useraveragebid)!== 'undefined') {
         return game[game.length - 1].useraveragebid['$numberDecimal'].toString();     
-      }
-    
-         
+      }      
      
     }   return ""; }
   //Get the winner 
@@ -129,98 +203,88 @@ export default function SubmitBid() {
     if (typeof game !== 'undefined' && game.length > 0 ) {
       if(typeof (game[game.length - 1].winner) !== 'undefined' && game[game.length - 1].winner.length > 0) {
           const _game = game[game.length - 1].winner;
-          return _game.map((item,index)=><span key={JSON.stringify(index)}>{item}, </span>);
+          return _game;
       } else {
-        return <></>;
-      }
-     
+        return "";
+      }     
     } else {
-      return <></>;
+      return "";
     }
   }
   //Get the winning bids
   const getWinningBids = () => {
     if (typeof game !== 'undefined' && game.length > 0 ) {
-      if(typeof (game[game.length - 1].winningbids) !== 'undefined' && game[game.length - 1].winningbids.length > 0) {
-          const _game = game[game.length - 1].winningbids;        
+      if(typeof (game[game.length - 1].winningbids) !== 'undefined') {
+          const _game = game[game.length - 1].winningbids['$numberDecimal'].toString();    
          
-          return _game.map((item,index)=><span key={JSON.stringify(index)}>{item['$numberDecimal']} </span>);;
+          return _game;
       } else {
-        return <></>;
+        return "";
       }
      
     } else {
-      return <></>;
+      return "";
     }
   }
+  //Get the current highest bid
+  //Calculate the winner 
+  const calculateWinner = (_gameData) => {
+    if ( typeof _gameData !== 'undefined' && _gameData.length > 0) {            
+      var simplifiedGameData = _gameData.map(item => {
+        return {"email": item.email, 
+        "lastbid":  item.bid.length > 0 ? parseFloat(item.bid[item.bid.length - 1]['$numberDecimal'].toString()):0,
+        "updated": item.updated,
+      }; });
+      var _bidList = simplifiedGameData.map(item=>item.lastbid);
+      //console.log("The list of bid", _bidList)
+      //find closest indexes
+      
+      const maxNumber = Math.max(_bidList);
+      const index = _bidList.map( (x,index) => { if(x === maxNumber) return index}).filter(item => item !== undefined);
+      const _winnerList = simplifiedGameData.filter((el,i) => index.some(j => i === j));
+      const _winnerEmail = _winnerList.map(item => item.email);
+      const _winnerBids = _winnerList.map(item => item.lastbid);
+      return {
+        userwinner: _winnerEmail, 
+        winningbid: _winnerBids,
+        averagebid:_winnerBids,
+        
+      }     
+
+    } else {
+      return {
+        userwinner: [], 
+        winningbid: [],
+        averangebid: 0,
+       
+      }
+    }
+
+  }
+
+  //Get the highest bid
+  const highestbid = calculateWinner(gameData).winningbid.length > 0 ? calculateWinner(gameData).winningbid[0] :0
+
+  
  
   //Get the game data of the current player
-  const userGameData = () => {
-    if (typeof gameData !== 'undefined' && gameData.length > 0 ) {
-     const data = gameData.filter((item)=>item.email===useremail);
-    if (typeof data!== 'undefined'&&data.length > 0) {
-      return data[0];
-    } else {
-      return {
-        email: useremail,
-        bid: [],
-      } ;
-    }
-    } else {
-      return {
-        email: useremail,
-        bid: [],
-      } ;
-    }
-  }
-  console.log(userGameData());
-  //Render the public information 
-  const renderPublicInfo = (_gameData) => {
-    if (_gameData.length > 0) {
-      if(_gameData[0].bid.length > 0) {
-        return ( <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="table-auto border-collapse border border-slate-400 w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-          <thead className=" text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>                
-              <th className="border border-slate-300 px-6 py-3">Student ID</th>
-              <th className="border border-slate-300 px-6 py-3">5 Latest Bids</th> 
-              <th className="border border-slate-300 px-6 py-3">Latest Bid</th>      
-              <th className="border border-slate-300 px-6 py-3">Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {_gameData.map((item,index)=> {
-              return (
-                <tr  key={JSON.stringify(index)}>                   
-                  <td className="border border-slate-300 px-6 py-3">{ item.email.slice(0,3) }***</td>
-                  <th className="border border-slate-300 px-6 py-3">{item.bid.length === 1? <span></span>: item.bid.slice(Math.max(item.bid.length-6,0), -1).map((usernumber,index)=>{
-                        return (
-                          <span key={JSON.stringify(index)} className="line-through lowercase font-light">{usernumber['$numberDecimal'].toLocaleString()}, </span>
-                          
-                        )
-                      }) 
-                    
-                  }</th> 
-                  <td className="border border-slate-300 px-6 py-3">{ item.bid[item.bid.length - 1]['$numberDecimal'].toLocaleString()}</td>          
-                  <td className="border border-slate-300 px-6 py-3">{ item.updated.slice(11,23) }</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-        
-      )
-
-      }
-       
-    }
-  }
+  const userData = typeof(gameData) !== "undefined"? gameData.filter(x => x.email == useremail) : [];  
   //Handle the submission button
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const auction_type = auctiontype();
+    if (auctiontype()==="dutch") {
+      setBid(currentprice);
+    }
+    console.log(userbid)
+    if (auctiontype()==="open") {
+      if (userbid < highestbid && highestbid > 0) {
+        setError("Error bid. You need to submit a bid higher than the current highest bid");
+        return;
+      }
+    }
    
-    if (userbid < 0 || userbid> 100) {
+    if (userbid < min) {
       setError("Error bid");
       return;
     }
@@ -228,10 +292,8 @@ export default function SubmitBid() {
       setError("You need all fields to submit");
       return;
     }
-
-    const userNumBid = (typeof userGameData().bid === 'undefined')? 0: userGameData().bid.length;
-    if (userNumBid>=maxnumbid()) {
-      
+    const userNumBid = (typeof userData.bid === 'undefined')? 0: userData.bid.length;
+    if (userNumBid>=maxnumbid()) {      
       setError("You have exceeded the number of bids");
       return;
     }
@@ -249,6 +311,19 @@ export default function SubmitBid() {
           },
           body: JSON.stringify({useremail, userbid})
       });
+      if (auction_type==="dutch") {
+        const userwinner = useremail;
+        const winningbid = userbid;
+        const averagebid = userbid;
+        const res_ok = await fetch('api/endGame', {
+          method: "POST",
+          headers: {
+            "Content-type": "application/json"
+          },
+          body: JSON.stringify({userwinner, winningbid, averagebid})
+      });
+
+      }
       setSubmissionTime(Date.now());   
       if (res.ok) {
           const form = e.target;
@@ -267,149 +342,135 @@ export default function SubmitBid() {
   
       
     }
-
    
   };
   //Render the instruction for each type of game
   const renderInstruction = () => {
-    if (gametype()==="private") {
+    if (auctiontype()==="sealedfirstprice" || auctiontype()==="sealedsecondprice" ) {
       return (<div class="mx-24 bg-green-200">
         <h3 class="mb-3 text-xs font-extrabold leading-none tracking-tight text-gray-900 md:text-xl lg:text-6xl dark:text-white">Instructions</h3>
         <p class="p-4 text-left">
-        Currently, the private game is active. The students can choose to submit any number between 0 and 100 . <br />
-        The maximum number of submission is {maxnumbid()}. Only 1 submission is allowed in 10 seconds. <br />
-        The winners are those with their numbers closest to 0.75 of the average submitted number.
+        Currently, the {auctiontype()==="sealedfirstprice" ? "sealed first price": "sealed second price"} auction is active. The students can choose to bid any number above {min} . <br />
+        The maximum number of bid is {maxnumbid()}. Only 1 submission is allowed in 10 seconds. <br />
+        All bids are sealed. The winner is the one with the {auctiontype()==="sealedfirstprice" ? "": "second"}  highest bid.         
         <br />
-        In case of multiple winners, a reward is shared among winners.
+        In case of multiple highest bids, the winner is the earliest bidder.       
         </p>
       </div>)
     }
-    if (gametype()==="public") {
+    if (auctiontype()==="open") {
       return (<div class="mx-24 bg-green-200">
         <h3 class="mb-3 text-xs font-extrabold leading-none tracking-tight text-gray-900 md:text-xl lg:text-6xl dark:text-white">Instructions</h3>
         <p class="p-4 text-left">
-        Currently, the public game is active. The students can choose to submit any number between 0 and 100 . <br />
-        The students can see other students numbers and change their numbers
+        Currently, the open auction is active. The students can choose to submit any bid above {min} and current highest bid. <br />
+        The students can see the current highest bid and change their bids
         <br />
         The maximum number of submission is {maxnumbid()}. Only 1 submission is allowed in 10 seconds. <br />
-        The winners are those with their numbers closest to 0.75 of the average submitted number.
-        <br />
-        In case of multiple winners, a reward is shared among winners.
+        The winner is the one with the highest bid
         </p>
+      </div>)
+    }
+    if (auctiontype()==="dutch") {
+      return (<div class="mx-24 bg-green-200">
+        <h3 class="mb-3 text-xs font-extrabold leading-none tracking-tight text-gray-900 md:text-xl lg:text-6xl dark:text-white">Instructions</h3>
+        <p class="p-4 text-left">
+        Currently, the dutch auction is active. The students can choose to submit. <br />
+        The price linearly decreases over time. The one who submit the first bid is the winner.     
+        
+        </p> 
       </div>)
     }
   }
   //Render the form and public info
 
   const renderForm = () => {
-    const userNumBid = (typeof userGameData().bid === 'undefined')? 0: userGameData().bid.length;
-    return (
-      isactive() === 'active'? <div>
-        <nav className="bg-white border-gray-200 dark:bg-gray-900 border-t dark:border-gray-600 border-b-2" >
-  <div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-10">
-    <a href="./" className="flex items-center space-x-3 rtl:space-x-reverse">
-        <img src="/beauty-contest.svg" width="100" height="600" className="h-8" alt="Econ Logo" />
-        <span className="self-center text-2xl font-semibold whitespace-nowrap dark:text-white"></span>
-    </a>
-    <button data-collapse-toggle="navbar-default" type="button" className="inline-flex items-center p-2 w-10 h-10 justify-center text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600" aria-controls="navbar-default" aria-expanded="false">
-        <span className="sr-only">Open main menu</span>
-        <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 17 14">
-            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M1 1h15M1 7h15M1 13h15"/>
-        </svg>
-    </button>
-    <div className="hidden w-full md:block md:w-auto" id="navbar-default">
-      <ul className="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">
-       
-        <li>
-        <div>
-        <button
-          onClick={() => {
-            signOut({ redirect: false }).then(() => {
-                router.push("/"); // Redirect to the dashboard page after signing out
-            });
-        }}
-          className="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent"
-        >
-          Log Out
-        </button>
+    const userNumBid = (typeof(userData.bid) !== 'undefined') ? userData.bid.length: 0;
+    if (isactive() === 'active'&& remainTime > 0) {
+      return ( <div>
+      <NavBarUser />
+      <div className="grid place-items-center h-screen">
+      <div>
+        Welcome {useremail}. { renderUserValuation() ? <> Your valuation is {renderUserValuation()}</>:<div></div>}.
       </div>
-        </li>
-      </ul>
-    </div>
-  </div>
-</nav>
+      <div>
+        {renderInstruction()}
+      </div>
 
-        <div className="grid place-items-center h-screen">
+      {renderUserValuation() ? (
         <div>
-          Welcome {useremail}. You have submitted {userNumBid} times.
-        </div>
-        <div>
-          {renderInstruction()}
-        </div>
-      <div className="shadow-lg p-5 rounded-lg border-t-4 border-green-400">
-        <h1 className="text-xl font-bold my-4">Bid Submission</h1>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            onChange={(e) => setBid(e.target.value)}
-            type="number"
-            step="any"
-            min="0" 
-            max="100"
-            placeholder="Enter your bid"
-            
-          />
-          
-          <button className="bg-green-600 text-white font-bold cursor-pointer px-6 py-2">
-            Submit
-          </button>
-          {error && (
-            <div className="bg-red-500 text-white w-fit text-sm py-1 px-3 rounded-md mt-2">
-              {error}
+           <div>
+        {auctiontype()==="dutch"? <LineCharts maxprice = {max*multiplier}  minprice = {min} auctionlength = {gamelength}  remainingtime= {remainTime/(60*1000)} />: <></>}
+           </div>
+           <div>
+              <CountdownTimer targetDate={targetTime} />
             </div>
-          )}
+            <div className="shadow-lg p-5 rounded-lg border-t-4 border-green-400">
+      <h1 className="text-xl font-bold my-4">Bid Submission</h1>
 
-        </form>
-      </div>
-      {gametype()==="public"? renderPublicInfo(gameData): (<div></div>)}
-    </div>
-      </div> : <div>      <nav className="bg-white border-gray-200 dark:bg-gray-900 border-t dark:border-gray-600 border-b-2" >
-  <div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-10">
-    <a href="./" className="flex items-center space-x-3 rtl:space-x-reverse">
-        <img src="/beauty-contest.svg" width="100" height="600" className="h-8" alt="Econ Logo" />
-        <span className="self-center text-2xl font-semibold whitespace-nowrap dark:text-white"></span>
-    </a>
-    <button data-collapse-toggle="navbar-default" type="button" className="inline-flex items-center p-2 w-10 h-10 justify-center text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600" aria-controls="navbar-default" aria-expanded="false">
-        <span className="sr-only">Open main menu</span>
-        <svg className="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 17 14">
-            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M1 1h15M1 7h15M1 13h15"/>
-        </svg>
-    </button>
-    <div className="hidden w-full md:block md:w-auto" id="navbar-default">
-      <ul className="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">
-       
-        <li>
-        <div>
-        <button
-          onClick={() => {
-            signOut({ redirect: false }).then(() => {
-                router.push("/"); // Redirect to the dashboard page after signing out
-            });
-        }}
-          className="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent"
-        >
-          Log Out
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        {auctiontype()==="dutch" ? (<></>):(<input
+          onChange={(e) => setBid(e.target.value)}
+          type="number"
+          step="any"
+          min="0" 
+          max="100"
+          placeholder="Enter your bid"
+          
+        />)}          
+        <button className="bg-green-600 text-white font-bold cursor-pointer px-6 py-2">
+          Submit
         </button>
-      </div>
-        </li>
-      </ul>
+        {error && (
+          <div className="bg-red-500 text-white w-fit text-sm py-1 px-3 rounded-md mt-2">
+            {error}
+          </div>
+        )}
+
+      </form>
     </div>
-  </div>
-</nav> <div className="grid place-items-center p-20">The game&apos;winner is {getWinner()}. <br/> 
-<br />
-The winning number is {getWinningBids()}. <br />
- The average bid is { gameAverageBid()}</div></div>
-    );
+    
+      {auctiontype()==="open"? (<div>The current highest bid is {highestbid}</div>): (<div></div>)}
+
+      </div>
+
+      ):(<div>
+          The auction is active. You need to register as an active user to bid.
+        </div>)}                
+      </div>
+    </div>)
+    }
+
+    if (isactive() === 'active'&& remainTime === 0) {
+      return ( 
+      <div>
+      <NavBarUser />
+      <div className="grid place-items-center h-screen">
+      <div>
+        Welcome {useremail}. { renderUserValuation() ? <> Your valuation is {renderUserValuation()}</>:<div></div>}.
+      </div>
+      <div>
+        {renderInstruction()}
+      </div>
+      <div>
+        The auction is active but the bidding period already ended.
+      </div>      
+      </div>
+      </div>)
+    }
+
+    if (isactive() !=='active') {
+      return ( <div> 
+      <NavBarUser />
+      <div className="grid place-items-center p-20">
+        There is no active game.
+      <br/>
+        The game&apos; winner is {getWinner()}. <br/> 
+      <br />
+        The winning number is {getWinningBids()}. <br />
+        The average bid is { gameAverageBid()}</div></div>
+      )
+    }   
+    
   }
 
   return (

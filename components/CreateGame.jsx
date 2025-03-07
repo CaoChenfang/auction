@@ -17,7 +17,11 @@ export default function LoginForm() {
   const [gameForm, setGameForm] = useState({
     maxnumbid: 0,
     gamelength: 0,
-    gametype:"",
+    reserveprice: 0,
+    maxvaluation: 0,
+    multiplier:0,
+    auctiontype:"",
+    signal: 0,
   });
   const[gameData, setGameData] = useState([]);
   const [error, setError] = useState("");
@@ -116,14 +120,24 @@ export default function LoginForm() {
     e.preventDefault();
     const maxNumBid = gameForm.maxnumbid;
     const gameLength = gameForm.gamelength;
-    const gameType = gameForm.gametype;
-    console.log(maxNumBid);
+    const auctionType = gameForm.auctiontype;
+    const signal = gameForm.signal;
+    const reservePrice = gameForm.reserveprice;
+    const maxValuation = gameForm.maxvaluation;
+    const bidMultiplier = gameForm.multiplier;
+    //console.log(gameForm)
+    console.log(bidMultiplier)
     //Persist to get the last game      
-    if (!maxNumBid || !gameLength || !gameType) {
+    if (!maxNumBid || !gameLength || !auctionType || !signal || !reservePrice|| !maxValuation || !bidMultiplier) {
       setError("all fields required");
       return;
-    }
-
+    } 
+    if (reservePrice > maxValuation) {
+      setError("The reserve price is greater than the commom valuation");
+      return;
+    };
+    
+    
     if (isactive()==="active") {
       setError("You need to end the current active game to create a new game");
       return;
@@ -151,7 +165,7 @@ export default function LoginForm() {
         headers: {
           "Content-type": "application/json"
         },
-        body: JSON.stringify({maxNumBid, gameLength, gameType})
+        body: JSON.stringify({maxNumBid, gameLength, auctionType, signal, bidMultiplier, reservePrice, maxValuation})
     });
    
     if (res.ok) {
@@ -172,7 +186,7 @@ export default function LoginForm() {
     return (
       <div className="grid place-items-center h-screen">
       <div className="shadow-lg p-5 rounded-lg border-t-4 border-green-400">
-        <h1 className="text-xl font-bold my-4">Create a new game</h1>
+        <h1 className="text-xl font-bold my-4">Create a new auction</h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           
@@ -181,8 +195,7 @@ export default function LoginForm() {
             type="number"
             placeholder="Max number of bids"
             name="maxnumbid"
-            min={1}
-            max={100}
+            min={1}            
             step={1}
             //value={gameForm.maxnumbid}
           />
@@ -191,36 +204,83 @@ export default function LoginForm() {
             type="number"
             placeholder="The game length in minutes"
             name="gamelength"
-            min={1}
-            max={100}
+            min={1}            
             step={1}
             //value={gameForm.gamelength}
           />
-        
+          <input
+            onChange={handleChange}
+            type="number"
+            placeholder="Reserve price"
+            name="reserveprice"
+            min={1}            
+            step={1}
+            //value={gameForm.gamelength}
+          />
+          <input
+            onChange={handleChange}
+            type="number"
+            placeholder="Common valuation"
+            name="maxvaluation"
+            min="0"            
+            step="any"
+            //value={gameForm.gamelength}
+          />
+          <input
+            onChange={handleChange}
+            type="number"
+            placeholder="Signal variance"
+            name="signal"
+            min="0"            
+            step="any"
+            //value={gameForm.gamelength}
+          />
+          <input
+            onChange={handleChange}
+            type="number"
+            placeholder="The bidder's multiplier"
+            name="multiplier"
+            min="0"            
+            step="any"
+            //value={gameForm.gamelength}
+          />        
           <fieldset>
-              <legend>The game type</legend>
+              <legend>The auction type</legend>
               <input
               type="radio"
-              id="private"
-              name="gametype"
+              id="open"
+              name="auctiontype"
               onChange={handleChange}
-              value="private"  
-              checked={gameForm.gametype==="private"}           
+              value="open"  
+              checked={gameForm.auctiontype==="open"}           
               />
-              <label htmlFor="private"> Private</label>
+              <label htmlFor="open"> Open</label>
               <br />
               <input
               type="radio"
-              id="public"
-              name="gametype"
-              value="public"
+              id="sealedfirstprice"
+              name="auctiontype"
+              value="sealedfirstprice"
               onChange={handleChange}
-              checked={gameForm.gametype==="public"}                 
+              checked={gameForm.auctiontype==="sealedfirstprice"}                 
               />
-              <label htmlFor="public"> Public</label>
+              <label htmlFor="sealedfirstprice"> Sealed first price</label>
+              <br />
+             
+              <input
+              type="radio"
+              id="dutch"
+              name="auctiontype"
+              value="dutch"
+              onChange={handleChange}
+              checked={gameForm.auctiontype==="dutch"}                 
+              />
+              <label htmlFor="dutch"> Dutch</label>
             </fieldset>
+
+
           <button className="bg-green-600 text-white font-bold cursor-pointer px-6 py-2">
-            Create a new game
+            Create a new auction
           </button>
          
           {error && (

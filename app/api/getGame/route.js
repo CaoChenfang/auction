@@ -1,11 +1,11 @@
 import { connectMongoDB } from "@/lib/mongodb";
-import Game from "@/models/game";
+import AuctionGame from "@/models/auctionGame";
 import { NextResponse } from "next/server";
 
 export async function POST() {
     try {
         await connectMongoDB();       
-        const data = await Game.find({});
+        const data = await AuctionGame.find({});
         return NextResponse.json( data );
 
     } catch (error) {

@@ -27,7 +27,7 @@ export default function LoginForm() {
         return;
       }
 
-      router.replace("submitbid");
+      router.replace("activeregister");
     } catch (error) {
       console.log(error);
     }
