@@ -397,7 +397,7 @@ export default function EndGame() {
     <br />
     The common valuation is {max}.
     <br />
-    The payoff for the winner is {parseFloat(parseFloat(max)- getWinningBids())}.        
+    The payoff for the winner is {parseFloat(max) - parseFloat(getWinningBids())}.        
     </div>
     );
   }
